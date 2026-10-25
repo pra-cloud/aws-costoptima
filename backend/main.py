@@ -58,24 +58,25 @@ def connect_account(req: ConnectAccountRequest):
     Connects a client's AWS account using IAM Cross-Account Role or Read-Only Keys.
     """
     global active_scanner, cached_scan_data
-    if req.is_demo:
-        active_scanner = AwsCostScanner()
-    else:
-        active_scanner = AwsCostScanner(
-            role_arn=req.role_arn,
-            external_id=req.external_id,
-            access_key=req.access_key,
-            secret_key=req.secret_key,
-            region=req.region
-        )
-    cached_scan_data = active_scanner.scan_all()
-    return {
-        "status": "connected",
-        "message": "AWS account connected and scanned successfully.",
-        "account_id": cached_scan_data.get("account_id"),
-        "total_savings": cached_scan_data.get("total_monthly_savings"),
-        "findings_count": cached_scan_data.get("findings_count")
-    }
+    try:
+        if req.is_demo:
+            active_scanner = AwsCostScanner()
+        else:
+            active_scanner = AwsCostScanner(
+                role_arn=req.role_arn,
+                external_id=req.external_id,
+                access_key=req.access_key,
+                secret_key=req.secret_key,
+                region=req.region
+            )
+        cached_scan_data = active_scanner.scan_all()
+        return {
+            "status": "connected",
+            "message": "AWS account connected and scanned successfully.",
+            "data": cached_scan_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/ai/analysis")
 async def get_ai_analysis():

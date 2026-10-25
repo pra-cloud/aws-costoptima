@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { X, ShieldCheck, Key, Copy, Check, Sparkles, ArrowRight, Zap, Cloud } from 'lucide-react';
+import { X, ShieldCheck, Key, Copy, Check, Sparkles, ArrowRight, Zap, Cloud, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function ConnectAwsModal({ isOpen, onClose, onConnect }) {
-  const [activeTab, setActiveTab] = useState('cloudformation');
+  const [activeTab, setActiveTab] = useState('keys'); // Default to keys as it's the fastest
   const [roleArn, setRoleArn] = useState('');
   const [externalId] = useState('cloudoptima-' + Math.random().toString(36).substring(2, 10));
   const [accessKey, setAccessKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
-  const [region, setRegion] = useState('us-east-1');
+  const [region, setRegion] = useState('ap-south-1');
   const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   if (!isOpen) return null;
 
@@ -22,6 +23,7 @@ export default function ConnectAwsModal({ isOpen, onClose, onConnect }) {
   const handleSubmitRole = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setErrorMessage('');
     try {
       await onConnect({
         role_arn: roleArn,
@@ -30,6 +32,8 @@ export default function ConnectAwsModal({ isOpen, onClose, onConnect }) {
         is_demo: false,
       });
       onClose();
+    } catch (err) {
+      setErrorMessage(err.message || 'Failed to assume role. Please verify your Role ARN.');
     } finally {
       setIsSubmitting(false);
     }
@@ -38,14 +42,17 @@ export default function ConnectAwsModal({ isOpen, onClose, onConnect }) {
   const handleSubmitKeys = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setErrorMessage('');
     try {
       await onConnect({
-        access_key: accessKey,
-        secret_key: secretKey,
+        access_key: accessKey.trim(),
+        secret_key: secretKey.trim(),
         region,
         is_demo: false,
       });
       onClose();
+    } catch (err) {
+      setErrorMessage(err.message || 'Failed to authenticate AWS credentials. Please check your keys and permissions.');
     } finally {
       setIsSubmitting(false);
     }
@@ -53,9 +60,12 @@ export default function ConnectAwsModal({ isOpen, onClose, onConnect }) {
 
   const handleLaunchDemo = async () => {
     setIsSubmitting(true);
+    setErrorMessage('');
     try {
       await onConnect({ is_demo: true });
       onClose();
+    } catch (err) {
+      setErrorMessage(err.message || 'Failed to load demo data.');
     } finally {
       setIsSubmitting(false);
     }
@@ -82,20 +92,21 @@ export default function ConnectAwsModal({ isOpen, onClose, onConnect }) {
           </button>
         </div>
 
-        {/* Apple-style segmented tabs */}
+        {/* Error message banner */}
+        {errorMessage && (
+          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 shrink-0 text-rose-500 mt-0.5" />
+            <div>
+              <span className="font-bold block">AWS Connection Notice:</span>
+              <p className="mt-0.5 leading-relaxed">{errorMessage}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Segmented tabs */}
         <div className="flex p-1 bg-slate-100/80 rounded-2xl border border-slate-200/60 text-xs font-semibold">
           <button
-            onClick={() => setActiveTab('cloudformation')}
-            className={`flex-1 py-2 rounded-xl transition ${
-              activeTab === 'cloudformation'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            1-Click CloudFormation
-          </button>
-          <button
-            onClick={() => setActiveTab('keys')}
+            onClick={() => { setActiveTab('keys'); setErrorMessage(''); }}
             className={`flex-1 py-2 rounded-xl transition ${
               activeTab === 'keys'
                 ? 'bg-white text-slate-900 shadow-sm'
@@ -105,18 +116,107 @@ export default function ConnectAwsModal({ isOpen, onClose, onConnect }) {
             IAM Read-Only Keys
           </button>
           <button
-            onClick={() => setActiveTab('demo')}
+            onClick={() => { setActiveTab('cloudformation'); setErrorMessage(''); }}
+            className={`flex-1 py-2 rounded-xl transition ${
+              activeTab === 'cloudformation'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            1-Click CloudFormation
+          </button>
+          <button
+            onClick={() => { setActiveTab('demo'); setErrorMessage(''); }}
             className={`flex-1 py-2 rounded-xl transition ${
               activeTab === 'demo'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-500 hover:text-slate-900'
             }`}
           >
-            Instant Live Demo
+            Demo Architecture
           </button>
         </div>
 
-        {/* Tab 1: CloudFormation */}
+        {/* Tab 1: IAM Keys */}
+        {activeTab === 'keys' && (
+          <form onSubmit={handleSubmitKeys} className="space-y-4 text-xs">
+            <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-100 text-emerald-800 space-y-1">
+              <span className="font-bold block">Safe & 100% Read-Only:</span>
+              <p className="text-[11px] leading-relaxed text-emerald-700">
+                Attach the AWS-managed <strong>SecurityAudit</strong> or <strong>ReadOnlyAccess</strong> policy to your user. Our scanner only executes describe and list calls.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">AWS Access Key ID</label>
+              <input
+                type="text"
+                required
+                placeholder="AKIAIOSFODNN7EXAMPLE"
+                value={accessKey}
+                onChange={(e) => setAccessKey(e.target.value)}
+                className="w-full rounded-xl bg-white border border-slate-200 px-3.5 py-2.5 text-slate-800 font-mono text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">AWS Secret Access Key</label>
+              <input
+                type="password"
+                required
+                placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                value={secretKey}
+                onChange={(e) => setSecretKey(e.target.value)}
+                className="w-full rounded-xl bg-white border border-slate-200 px-3.5 py-2.5 text-slate-800 font-mono text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Primary Region</label>
+              <select
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                className="w-full rounded-xl bg-white border border-slate-200 px-3.5 py-2.5 text-slate-800 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              >
+                <option value="ap-south-1">Asia Pacific (Mumbai) [ap-south-1]</option>
+                <option value="us-east-1">US East (N. Virginia) [us-east-1]</option>
+                <option value="us-west-2">US West (Oregon) [us-west-2]</option>
+                <option value="eu-west-1">Europe (Ireland) [eu-west-1]</option>
+                <option value="eu-central-1">Europe (Frankfurt) [eu-central-1]</option>
+                <option value="ap-southeast-1">Asia Pacific (Singapore) [ap-southeast-1]</option>
+              </select>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2.5 rounded-xl text-slate-500 hover:text-slate-800 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || !accessKey || !secretKey}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center gap-2 shadow-md shadow-blue-500/20 transition disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Scanning AWS Cloud...
+                  </>
+                ) : (
+                  <>
+                    Start Deep Cost Scan
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Tab 2: CloudFormation */}
         {activeTab === 'cloudformation' && (
           <form onSubmit={handleSubmitRole} className="space-y-4 text-xs">
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 space-y-2">
@@ -174,67 +274,6 @@ export default function ConnectAwsModal({ isOpen, onClose, onConnect }) {
                 className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center gap-2 shadow-md shadow-blue-500/20 transition disabled:opacity-50"
               >
                 {isSubmitting ? 'Verifying Role...' : 'Connect & Scan Cloud'}
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* Tab 2: IAM Keys */}
-        {activeTab === 'keys' && (
-          <form onSubmit={handleSubmitKeys} className="space-y-4 text-xs">
-            <div>
-              <label className="block text-slate-700 font-semibold mb-1">AWS Access Key ID</label>
-              <input
-                type="text"
-                required
-                placeholder="AKIAIOSFODNN7EXAMPLE"
-                value={accessKey}
-                onChange={(e) => setAccessKey(e.target.value)}
-                className="w-full rounded-xl bg-white border border-slate-200 px-3.5 py-2.5 text-slate-800 font-mono text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-700 font-semibold mb-1">AWS Secret Access Key</label>
-              <input
-                type="password"
-                required
-                placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-                value={secretKey}
-                onChange={(e) => setSecretKey(e.target.value)}
-                className="w-full rounded-xl bg-white border border-slate-200 px-3.5 py-2.5 text-slate-800 font-mono text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-700 font-semibold mb-1">Default Region</label>
-              <select
-                value={region}
-                onChange={(e) => setRegion(e.target.value)}
-                className="w-full rounded-xl bg-white border border-slate-200 px-3.5 py-2.5 text-slate-800 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-              >
-                <option value="us-east-1">US East (N. Virginia) [us-east-1]</option>
-                <option value="us-west-2">US West (Oregon) [us-west-2]</option>
-                <option value="eu-west-1">Europe (Ireland) [eu-west-1]</option>
-                <option value="ap-south-1">Asia Pacific (Mumbai) [ap-south-1]</option>
-              </select>
-            </div>
-
-            <div className="pt-2 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2.5 rounded-xl text-slate-500 hover:text-slate-800 font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting || !accessKey || !secretKey}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center gap-2 shadow-md shadow-blue-500/20 transition disabled:opacity-50"
-              >
-                {isSubmitting ? 'Authenticating...' : 'Connect AWS Account'}
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
