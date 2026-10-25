@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudOptima Read-Only Cross-Account IAM Role for AI Cloud Cost & Waste Optimization'
+
+Parameters:
+  CloudOptimaAccountId:
+    Type: String
+    Description: 'The AWS Account ID of the CloudOptima SaaS backend'
+    Default: '123456789012'
+
+  ExternalId:
+    Type: String
+    Description: 'Unique External ID provided by CloudOptima to prevent Confused Deputy attacks'
+
+Resources:
+  CloudOptimaReadOnlyRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub 'CloudOptimaCostOptimizerRole-${ExternalId}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${CloudOptimaAccountId}:root'
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                'sts:ExternalId': !Ref ExternalId
+      ManagedPolicyArns:
+        # Standard AWS read-only security audit policy
+        - 'arn:aws:iam::aws:policy/SecurityAudit'
+      Policies:
+        - PolicyName: CloudOptimaCostAuditPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Cost Explorer read-only
+              - Effect: Allow
+                Action:
+                  - 'ce:GetCostAndUsage'
+                  - 'ce:GetCostForecast'
+                  - 'ce:GetDimensionValues'
+                  - 'ce:GetReservationUtilization'
+                  - 'ce:GetSavingsPlansUtilization'
+                  - 'ce:GetSavingsPlansCoverage'
+                Resource: '*'
+              # Compute and Storage telemetry
+              - Effect: Allow
+                Action:
+                  - 'cloudwatch:GetMetricData'
+                  - 'cloudwatch:GetMetricStatistics'
+                  - 'ec2:DescribeInstances'
+                  - 'ec2:DescribeVolumes'
+                  - 'ec2:DescribeSnapshots'
+                  - 'ec2:DescribeAddresses'
+                  - 'ec2:DescribeNatGateways'
+                  - 'rds:DescribeDBInstances'
+                  - 's3:ListAllMyBuckets'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetLifecycleConfiguration'
+                Resource: '*'
+
+Outputs:
+  RoleArn:
+    Description: 'The ARN of the created CloudOptima Cross-Account Role. Copy and paste this into the CloudOptima dashboard.'
+    Value: !GetAtt CloudOptimaReadOnlyRole.Arn
