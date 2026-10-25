@@ -1,8 +1,11 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
-import os
 
 from services.aws_scanner import AwsCostScanner
 from services.ai_copilot import AiCostCopilot
@@ -23,7 +26,19 @@ app.add_middleware(
 )
 
 # In-memory active session state
-active_scanner = AwsCostScanner()  # Defaults to demo mode
+env_access = os.getenv("AWS_ACCESS_KEY_ID")
+env_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
+env_region = os.getenv("AWS_DEFAULT_REGION", "ap-south-1")
+
+if env_access and env_secret:
+    active_scanner = AwsCostScanner(
+        access_key=env_access,
+        secret_key=env_secret,
+        region=env_region
+    )
+else:
+    active_scanner = AwsCostScanner()
+
 ai_copilot = AiCostCopilot()
 cached_scan_data: Optional[Dict[str, Any]] = None
 

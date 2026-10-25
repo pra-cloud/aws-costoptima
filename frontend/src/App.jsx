@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Cloud,
   ShieldCheck,
@@ -38,12 +38,33 @@ export default function App() {
   
   // Connection and scanning state
   const [accountInfo, setAccountInfo] = useState({
-    id: 'Demo Account (Production / Main)',
-    region: 'us-east-1',
-    isDemo: true
+    id: 'Connecting...',
+    region: 'ap-south-1',
+    isDemo: false
   });
   const [isScanning, setIsScanning] = useState(false);
   const [scanNotification, setScanNotification] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/scan')
+      .then(res => res.json())
+      .then(data => {
+        if (data) {
+          setAccountInfo({
+            id: data.account_id || 'Connected Account',
+            region: data.region || 'ap-south-1',
+            isDemo: data.account_id ? data.account_id.includes('Demo') : false
+          });
+          if (data.findings && data.findings.length > 0) {
+            setFindings(data.findings);
+          }
+          if (data.monthly_current_spend) {
+            setBaseMonthlySpend(data.monthly_current_spend);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Track resolved items to simulate real-time savings
   const [resolvedIds, setResolvedIds] = useState([]);
